@@ -1,0 +1,32 @@
+﻿# Node
+node_modules/
+dist/
+build/
+.cache/
+
+# Python
+__pycache__/
+venv/
+.venv/
+
+# Environment files
+.env
+*.env
+.env.*
+
+# Prisma
+.prisma/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS crap
+.DS_Store
+Thumbs.db
+
+# Temporary workspace (for repo cloning later)
+workspace/
+tmp/
+repos/
+

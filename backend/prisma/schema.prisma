@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  PENDING_SETUP
+  READY
+  SETUP_FAILED
+}
+
+enum TriggerType {
+  AUTO_INITIAL
+  AUTO_SCHEDULE
+  MANUAL
+  WEBHOOK
+}
+
+enum RunStatus {
+  PASSED
+  FAILED
+  ERROR
+}
+
+model Project {
+  id            String        @id @default(cuid())
+  name          String
+  repoUrl       String
+  defaultBranch String        @default("main")
+  stack         String?
+  testCommand   String?
+  localPath     String?
+  status        ProjectStatus @default(PENDING_SETUP)
+  lastRunId     String?
+
+  runs          TestRun[]     @relation("ProjectRuns")
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model TestRun {
+  id          String      @id @default(cuid())
+  project     Project     @relation("ProjectRuns", fields: [projectId], references: [id])
+  projectId   String
+
+  triggerType TriggerType
+  ciRunId     String?
+  branch      String
+  status      RunStatus
+  coverage    Float?
+  testsPassed Int?
+  testsFailed Int?
+  rawOutput   String?
+  summary     String?
+  suggestions Json?
+
+  createdAt   DateTime    @default(now())
+}

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { RunStatus, TriggerType } from "@prisma/client";
+import { TriggerType } from "@prisma/client";
+import { runPipeline } from "../core/runPipeline";
 
 const router = Router();
 
@@ -63,43 +64,29 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST /api/projects/:id/run  (dummy run for now)
+// POST /api/projects/:id/run  (real pipeline – Node-only v1)
 router.post("/:id/run", async (req, res) => {
   try {
     const { id: projectId } = req.params;
 
+    // 404 if project doesn't exist
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    const randomPassed = Math.floor(Math.random() * 50) + 50; // 50-99
-    const randomFailed = Math.floor(Math.random() * 5);
-    const randomCoverage = 60 + Math.random() * 40; // 60-100
-
-    const run = await prisma.testRun.create({
-      data: {
-        projectId,
-        triggerType: TriggerType.MANUAL,
-        branch: project.defaultBranch,
-        status: randomFailed > 0 ? RunStatus.FAILED : RunStatus.PASSED,
-        coverage: Number(randomCoverage.toFixed(2)),
-        testsPassed: randomPassed,
-        testsFailed: randomFailed,
-        rawOutput: "Dummy test output. Replace with real test execution later.",
-        summary: "Dummy run created. Integrate real repo execution + AI summary later.",
-        suggestions: [
-          "Integrate real git clone & test command runner.",
-          "Parse actual coverage from test output.",
-          "Call AI provider to generate real summaries."
-        ]
-      }
+    const run = await runPipeline({
+      projectId,
+      triggerType: TriggerType.MANUAL
     });
 
-    return res.status(201).json({ data: run, message: "Dummy test run created" });
+    return res.status(201).json({
+      data: run,
+      message: "Test pipeline executed (Node-only v1)."
+    });
   } catch (err) {
-    console.error("Error creating dummy run:", err);
-    return res.status(500).json({ error: "Failed to create test run" });
+    console.error("Error running pipeline:", err);
+    return res.status(500).json({ error: "Failed to run test pipeline" });
   }
 });
 

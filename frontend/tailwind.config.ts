@@ -1,10 +1,9 @@
 import type { Config } from "tailwindcss";
 
 const config = {
-  // FIX 1: darkMode must be a string, NOT an array
-  darkMode: "class",
+  // CRITICAL FIX: Must be a string "class", not an array ["class"]
+  darkMode: "class", 
   content: [
-    // FIX 2: Ensure these point exactly to where your files are
     './pages/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
     './app/**/*.{ts,tsx}',
@@ -20,6 +19,14 @@ const config = {
       },
     },
     extend: {
+      fontFamily: {
+        // Sets Inter as the default font
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui"],
+        // Creates the 'font-heading' utility for Space Grotesk
+        heading: ["var(--font-heading)", "ui-sans-serif", "system-ui"],
+        // Keeps mono for code blocks
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
-// Load fonts
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const jetbrainsMono = JetBrains_Mono({ 
+// 1. Setup Body Font (Inter)
+const inter = Inter({ 
   subsets: ["latin"], 
-  variable: "--font-mono" 
+  variable: "--font-sans",
+});
+
+// 2. Setup Heading Font (Space Grotesk)
+const spaceGrotesk = Space_Grotesk({ 
+  subsets: ["latin"], 
+  variable: "--font-heading",
 });
 
 export const metadata: Metadata = {
@@ -23,9 +28,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={cn(
-        "min-h-screen bg-background font-sans antialiased selection:bg-violet-500/30",
-        inter.variable,
-        jetbrainsMono.variable
+        "min-h-screen bg-background font-sans antialiased",
+        inter.variable,       // Inject Inter variable
+        spaceGrotesk.variable // Inject Space Grotesk variable
       )}>
         {children}
       </body>

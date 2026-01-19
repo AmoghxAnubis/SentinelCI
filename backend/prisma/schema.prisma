@@ -21,6 +21,8 @@ enum TriggerType {
 }
 
 enum RunStatus {
+  QUEUED       // New: Run created but not started
+  IN_PROGRESS  // New: Pipeline is currently executing
   PASSED
   FAILED
   ERROR
@@ -36,7 +38,7 @@ model Project {
   localPath     String?
   status        ProjectStatus @default(PENDING_SETUP)
   lastRunId     String?
-
+  
   runs          TestRun[]     @relation("ProjectRuns")
 
   createdAt     DateTime      @default(now())
@@ -60,4 +62,5 @@ model TestRun {
   suggestions Json?
 
   createdAt   DateTime    @default(now())
+  finishedAt  DateTime?   // New: To track when the run actually completed
 }

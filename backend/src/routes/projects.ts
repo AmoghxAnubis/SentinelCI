@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { TriggerType } from "@prisma/client";
+import { TriggerType, RunStatus } from "@prisma/client";
 import { runPipeline } from "../core/runPipeline";
 
 const router = Router();
@@ -64,29 +64,56 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST /api/projects/:id/run  (real pipeline – Node-only v1)
+// POST /api/projects/:id/run  (ASYNC FIRE-AND-FORGET)
 router.post("/:id/run", async (req, res) => {
   try {
     const { id: projectId } = req.params;
 
-    // 404 if project doesn't exist
+    // 1. Check if project exists
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    const run = await runPipeline({
-      projectId,
-      triggerType: TriggerType.MANUAL
+    // 2. Create the TestRun record IMMEDIATELY (Status: IN_PROGRESS)
+    const newRun = await prisma.testRun.create({
+      data: {
+        projectId,
+        triggerType: TriggerType.MANUAL,
+        branch: project.defaultBranch,
+        status: RunStatus.IN_PROGRESS, // Immediate feedback
+        rawOutput: "Initializing pipeline...",
+      }
     });
 
-    return res.status(201).json({
-      data: run,
-      message: "Test pipeline executed (Node-only v1)."
+    // 3. Trigger the heavy pipeline logic in the BACKGROUND (no await)
+    // We pass the 'newRun.id' so the pipeline knows which record to update.
+    runPipeline({
+      projectId,
+      runId: newRun.id
+    }).catch(err => {
+      // If the pipeline function itself crashes unexpectedly
+      console.error(`[Background] Pipeline crashed for run ${newRun.id}:`, err);
+      // Try to update DB to error state if possible
+      prisma.testRun.update({
+        where: { id: newRun.id },
+        data: { 
+            status: RunStatus.ERROR, 
+            summary: "Internal System Error: Pipeline crashed." 
+        }
+      }).catch(() => {/* ignore secondary error */});
     });
+
+    // 4. Return success immediately to the client
+    return res.status(201).json({
+      message: "Test pipeline started successfully.",
+      runId: newRun.id,
+      status: "IN_PROGRESS"
+    });
+
   } catch (err) {
-    console.error("Error running pipeline:", err);
-    return res.status(500).json({ error: "Failed to run test pipeline" });
+    console.error("Error triggering pipeline:", err);
+    return res.status(500).json({ error: "Failed to trigger test pipeline" });
   }
 });
 

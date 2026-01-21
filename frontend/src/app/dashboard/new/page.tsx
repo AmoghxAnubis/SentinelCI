@@ -3,13 +3,66 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Github, Terminal, Shield, Check } from "lucide-react";
+import { ArrowLeft, Github, Terminal, Check, Loader2, AlertCircle } from "lucide-react"; // Added Loader2, AlertCircle
 import Link from "next/link";
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { createProject } from "@/lib/api"; // Import our API helper
+import { useRouter } from "next/navigation"; // To redirect after success
 
 export default function NewProjectPage() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Form State
+  const [formData, setFormData] = useState({
+    repoUrl: "",
+    name: "",
+    defaultBranch: "main",
+    testCommand: "npm test"
+  });
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Step 1: "Verify" (Simulated for now, just checks if URL is not empty)
+  const handleVerify = () => {
+    if (!formData.repoUrl.includes("github.com")) {
+      setError("Please enter a valid GitHub URL.");
+      return;
+    }
+    setError("");
+    
+    // Auto-fill project name from repo URL if empty
+    if (!formData.name) {
+      const parts = formData.repoUrl.split("/");
+      const repoName = parts[parts.length - 1]?.replace(".git", "") || "my-project";
+      handleChange("name", repoName);
+    }
+    
+    setStep(2);
+  };
+
+  // Step 2: Submit to Backend
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      await createProject(formData);
+      // Redirect to dashboard on success
+      router.push("/dashboard");
+      router.refresh(); // Ensure dashboard re-fetches data
+    } catch (err) {
+      console.error(err);
+      setError("Failed to create project. Ensure Backend is running on Port 4000.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-2xl mx-auto pt-8">
@@ -39,6 +92,14 @@ export default function NewProjectPage() {
       {/* Form Card */}
       <div className="bg-[#0A0A0A] border border-neutral-900 rounded-xl p-8 relative overflow-hidden">
         
+        {/* Error Banner */}
+        {error && (
+            <div className="mb-6 p-3 bg-red-950/20 border border-red-900/50 rounded-lg flex items-center gap-3 text-red-500 text-sm">
+                <AlertCircle className="h-4 w-4" />
+                {error}
+            </div>
+        )}
+
         {step === 1 && (
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                 <div className="space-y-6">
@@ -48,13 +109,15 @@ export default function NewProjectPage() {
                             <Github className="absolute left-3 top-3 h-5 w-5 text-neutral-500" />
                             <Input 
                                 placeholder="https://github.com/username/repo" 
+                                value={formData.repoUrl}
+                                onChange={(e) => handleChange("repoUrl", e.target.value)}
                                 className="pl-10 bg-black border-neutral-800 h-12 text-white focus-visible:ring-green-500" 
                             />
                         </div>
                         <p className="text-xs text-neutral-500">Public repositories are supported by default.</p>
                     </div>
 
-                    <Button onClick={() => setStep(2)} className="w-full bg-green-600 hover:bg-green-500 text-black font-bold h-12">
+                    <Button onClick={handleVerify} className="w-full bg-green-600 hover:bg-green-500 text-black font-bold h-12">
                         Verify Connection
                     </Button>
                 </div>
@@ -71,25 +134,41 @@ export default function NewProjectPage() {
 
                     <div className="space-y-2">
                         <Label className="text-neutral-300">Project Name</Label>
-                        <Input defaultValue="sentinel-backend" className="bg-black border-neutral-800 h-12 text-white" />
+                        <Input 
+                            value={formData.name}
+                            onChange={(e) => handleChange("name", e.target.value)}
+                            className="bg-black border-neutral-800 h-12 text-white" 
+                        />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label className="text-neutral-300">Branch</Label>
-                            <Input defaultValue="main" className="bg-black border-neutral-800 h-12 text-white" />
+                            <Input 
+                                value={formData.defaultBranch}
+                                onChange={(e) => handleChange("defaultBranch", e.target.value)}
+                                className="bg-black border-neutral-800 h-12 text-white" 
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label className="text-neutral-300">Test Command</Label>
                             <div className="relative">
                                 <Terminal className="absolute left-3 top-3.5 h-4 w-4 text-neutral-500" />
-                                <Input defaultValue="npm test" className="pl-9 bg-black border-neutral-800 h-12 text-white" />
+                                <Input 
+                                    value={formData.testCommand}
+                                    onChange={(e) => handleChange("testCommand", e.target.value)}
+                                    className="pl-9 bg-black border-neutral-800 h-12 text-white" 
+                                />
                             </div>
                         </div>
                     </div>
 
-                    <Button className="w-full bg-green-600 hover:bg-green-500 text-black font-bold h-12 mt-4 shadow-[0_0_20px_rgba(34,197,94,0.2)]">
-                        Initialize Pipeline
+                    <Button 
+                        onClick={handleSubmit} 
+                        disabled={loading}
+                        className="w-full bg-green-600 hover:bg-green-500 text-black font-bold h-12 mt-4 shadow-[0_0_20px_rgba(34,197,94,0.2)] disabled:opacity-50"
+                    >
+                        {loading ? <Loader2 className="animate-spin h-5 w-5" /> : "Initialize Pipeline"}
                     </Button>
                 </div>
             </motion.div>

@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { TriggerType, RunStatus } from "@prisma/client";
+import { TriggerType, RunStatus } from "@prisma/client"; 
 import { runPipeline } from "../core/runPipeline";
 
 const router = Router();
 
-// POST /api/projects
+// POST /api/projects (UPDATED: Auto-Start Pipeline)
 router.post("/", async (req, res) => {
   try {
     const { name, repoUrl, defaultBranch = "main", testCommand } = req.body;
@@ -14,6 +14,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "name and repoUrl are required" });
     }
 
+    // 1. Create the Project (Status: PENDING_SETUP)
     const project = await prisma.project.create({
       data: {
         name,
@@ -24,7 +25,32 @@ router.post("/", async (req, res) => {
       }
     });
 
-    return res.status(201).json({ data: project, message: "Project created" });
+    // 2. IMMEDIATE ACTION: Create the First Test Run
+    const newRun = await prisma.testRun.create({
+      data: {
+        projectId: project.id,
+        triggerType: TriggerType.AUTO_INITIAL, // Mark as initial run
+        branch: defaultBranch,
+        status: RunStatus.IN_PROGRESS,
+        rawOutput: "Initializing first pipeline run...",
+      }
+    });
+
+    // 3. Trigger the Pipeline in Background (Fire & Forget)
+    runPipeline({
+      projectId: project.id,
+      runId: newRun.id
+    }).catch(err => {
+      console.error(`[Auto-Start] Pipeline crashed for project ${project.id}:`, err);
+      // We don't need to update DB here, runPipeline handles its own error states
+    });
+
+    // 4. Return the project (Frontend will see it immediately)
+    return res.status(201).json({ 
+        data: project, 
+        message: "Project created and pipeline started." 
+    });
+
   } catch (err) {
     console.error("Error creating project:", err);
     return res.status(500).json({ error: "Failed to create project" });
@@ -69,42 +95,28 @@ router.post("/:id/run", async (req, res) => {
   try {
     const { id: projectId } = req.params;
 
-    // 1. Check if project exists
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    // 2. Create the TestRun record IMMEDIATELY (Status: IN_PROGRESS)
     const newRun = await prisma.testRun.create({
       data: {
         projectId,
         triggerType: TriggerType.MANUAL,
         branch: project.defaultBranch,
-        status: RunStatus.IN_PROGRESS, // Immediate feedback
+        status: RunStatus.IN_PROGRESS,
         rawOutput: "Initializing pipeline...",
       }
     });
 
-    // 3. Trigger the heavy pipeline logic in the BACKGROUND (no await)
-    // We pass the 'newRun.id' so the pipeline knows which record to update.
     runPipeline({
       projectId,
       runId: newRun.id
     }).catch(err => {
-      // If the pipeline function itself crashes unexpectedly
       console.error(`[Background] Pipeline crashed for run ${newRun.id}:`, err);
-      // Try to update DB to error state if possible
-      prisma.testRun.update({
-        where: { id: newRun.id },
-        data: { 
-            status: RunStatus.ERROR, 
-            summary: "Internal System Error: Pipeline crashed." 
-        }
-      }).catch(() => {/* ignore secondary error */});
     });
 
-    // 4. Return success immediately to the client
     return res.status(201).json({
       message: "Test pipeline started successfully.",
       runId: newRun.id,
